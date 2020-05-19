@@ -313,6 +313,43 @@ class Model(nn.Module):
         return sequence_output , pooled_output
 
 
+class BertForMaskedLM(nn.Module):
+    def __init__(self, config) -> None:
+        super(BertForMaskedLM).__init__()
+        self.bert = Model(config)
+        self.cls = PreTrainingHeads(config)
+
+        self.tie_weights()
+
+    def forward(self, input_ids, token_type_ids=None, attention_mask=None, masked_lm_labels=None):
+        outputs = self.bert(input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask)
+        sequence_output = outputs[0]
+        prediction_scores = self.cls(sequence_output)
+
+        if masked_lm_labels is not None:
+            loss_fct = CrossEntropyLoss(ignore_index=-1)
+            masked_lm_loss = loss_fct(prediction_scores.view(-1, self.config.vocab_size), masked_lm_labels.view(-1))
+            outputs = (masked_lm_loss,) + outputs
+
+        return outputs
+
+    def tie_weights(self):
+        self._tie_or_clone_weights(self.cls.predictions.decoder, self.bert.embeddings.word_embeddings)
+
+    def _tie_or_clone_weights(self, first_module, second_module):
+        if self.config.torchscript:
+            first_module.weight = nn.Parameter(second_module.weight.clone())
+        else:
+            first_module.weight = second_module.weight
+
+        if hasattr(first_module, 'bias') and first_module.bias is not None:
+            first_module.bias.data = torch.nn.functional.pad(
+                first_module.bias.data,
+                (0, first_module.weight.shape[0] - first_module.bias.shape[0]),
+                'constant',
+                0
+            )
+
 class QuestionAnswering(nn.Module):
     def __init__(self, config):
         super(QuestionAnswering, self).__init__()
