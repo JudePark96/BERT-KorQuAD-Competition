@@ -114,7 +114,7 @@ def main():
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
 
-    tokenizer = BertTokenizer('data/ko_vocab_32k.txt',
+    tokenizer = BertTokenizer('rsc/pretrained/ko_vocab_32k.txt',
                               max_len=args.max_seq_length,
                               do_basic_tokenize=True)
     # Prepare model
