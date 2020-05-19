@@ -1,0 +1,11 @@
+python3 eval.py \
+  --checkpoint ./rsc/output/fine_tunned/korquad_3.bin \
+  --output_dir ./rsc/output/prediction \
+  --predict_file=./rsc/data/KorQuAD_v1.0_dev.json \
+  --max_seq_length=512 \
+  --max_query_length=96 \
+  --max_answer_length=30 \
+  --doc_stride=128 \
+  --train_batch_size=16 \
+  --n_best_size=20 \
+  --seed=42
