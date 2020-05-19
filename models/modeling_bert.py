@@ -330,6 +330,7 @@ class BertForMaskedLM(nn.Module):
         prediction_scores = self.cls(sequence_output)
 
         if batch['masked_lm_labels'] is not None:
+            # TODO -> to GPU?
             loss_fct = CrossEntropyLoss(ignore_index=-1)
             masked_lm_loss = loss_fct(
                 prediction_scores.view(-1, self.config.vocab_size), batch['masked_lm_labels'].view(-1))

@@ -6,10 +6,11 @@ from torch.utils.data import Dataset
 
 
 class BertPostTrainingDataset(Dataset):
-    def __init__(self, corpus_file: str, max_seq_length: int = 512, split: str = ''):
+    def __init__(self, corpus_file: str, max_seq_length: int, device: str, split: str = ''):
         super(BertPostTrainingDataset, self).__init__()
         self.corpus_file = corpus_file
         self.max_seq_length = max_seq_length
+        self.device = device
         self.split = split
 
         with h5py.File(self.corpus_file, 'r') as features_hdf:
@@ -26,8 +27,8 @@ class BertPostTrainingDataset(Dataset):
                                                        self.max_seq_length)
         curr_features = dict()
         for feat_key in features.keys():
-            curr_features[feat_key] = torch.tensor(features[feat_key]).long()
-        curr_features['masked_lm_labels'] = torch.tensor(anno_masked_lm_labels).long()
+            curr_features[feat_key] = torch.tensor(features[feat_key]).long().to(self.device)
+        curr_features['masked_lm_labels'] = torch.tensor(anno_masked_lm_labels).long().to(self.device)
         return curr_features
 
     def _read_hdf_features(self, index):

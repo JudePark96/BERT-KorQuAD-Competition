@@ -9,6 +9,7 @@ import random
 import sys
 from io import open
 
+import torch.nn as nn
 import numpy as np
 import torch
 from torch.utils.data import (DataLoader, RandomSampler, TensorDataset)
@@ -90,6 +91,7 @@ def main():
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
+
     if n_gpu > 0:
         torch.cuda.manual_seed_all(args.seed)
 
@@ -100,11 +102,16 @@ def main():
     config = Config.from_json_file(args.model_config)
     model = BertForMaskedLM(config)
     model.bert.load_state_dict(torch.load(args.checkpoint))
+
+    # Multi-GPU Setting
+    if n_gpu > 1:
+        model = nn.DataParallel(model)
+
     num_params = count_parameters(model)
     logger.info("Total Parameter: %d" % num_params)
     model.to(device)
 
-    post_training_dataset = BertPostTrainingDataset(args.corpus, args.max_seq_length)
+    post_training_dataset = BertPostTrainingDataset(args.corpus, args.max_seq_length, device)
 
     num_train_optimization_steps = int(len(post_training_dataset) / args.train_batch_size) * args.num_train_epochs
 
