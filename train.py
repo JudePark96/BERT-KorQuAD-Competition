@@ -99,7 +99,6 @@ def main():
 
     args = parser.parse_args()
 
-    summary_writer = SummaryWriter(args.log_dir)
     device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
     n_gpu = torch.cuda.device_count()
     logger.info("device: {} n_gpu: {}, 16-bits training: {}".format(
@@ -180,17 +179,20 @@ def main():
     logger.info("  Num steps = %d", num_train_optimization_steps)
     num_train_step = num_train_optimization_steps
 
-    all_input_ids = torch.tensor([f.input_ids for f in train_features], dtype=torch.long).to(device)
-    all_input_mask = torch.tensor([f.input_mask for f in train_features], dtype=torch.long).to(device)
-    all_segment_ids = torch.tensor([f.segment_ids for f in train_features], dtype=torch.long).to(device)
-    all_start_positions = torch.tensor([f.start_position for f in train_features], dtype=torch.long).to(device)
-    all_end_positions = torch.tensor([f.end_position for f in train_features], dtype=torch.long).to(device)
+    all_input_ids = torch.tensor([f.input_ids for f in train_features], dtype=torch.long)
+    all_input_mask = torch.tensor([f.input_mask for f in train_features], dtype=torch.long)
+    all_segment_ids = torch.tensor([f.segment_ids for f in train_features], dtype=torch.long)
+    all_start_positions = torch.tensor([f.start_position for f in train_features], dtype=torch.long)
+    all_end_positions = torch.tensor([f.end_position for f in train_features], dtype=torch.long)
     train_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids,
                                all_start_positions, all_end_positions)
 
     train_sampler = RandomSampler(train_data)
-    # TODO => Add argument num_workers option
+    # TODO => Add argument num_worker option
     train_dataloader = DataLoader(train_data, sampler=train_sampler, batch_size=args.train_batch_size, num_workers=16)
+
+    logger.info('Start training ...')
+    summary_writer = SummaryWriter(args.log_dir)
 
     model.train()
     global_step = 0

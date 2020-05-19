@@ -361,7 +361,12 @@ class QuestionAnswering(nn.Module):
         self.qa_outputs = Linear(config.hidden_size, 2)
 
     def forward(self, input_ids, token_type_ids=None, attention_mask=None, start_positions=None, end_positions=None):
-        sequence_output, _ = self.bert(input_ids, token_type_ids, attention_mask)
+        batch = {
+            'input_ids': input_ids,
+            'token_type_ids': token_type_ids,
+            'attention_mask': attention_mask
+        }
+        sequence_output, _ = self.bert(batch)
         logits = self.qa_outputs(sequence_output)
         start_logits, end_logits = logits.split(1, dim=-1)
         start_logits = start_logits.squeeze(-1)
