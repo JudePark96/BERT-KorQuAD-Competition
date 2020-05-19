@@ -25,7 +25,7 @@ import h5py
 import numpy as np
 from tqdm import tqdm
 
-from tokenizer import BertTokenizer
+from utils.tokenization import BertTokenizer
 
 
 class TrainingInstance(object):
@@ -47,24 +47,19 @@ MaskedLmInstance = collections.namedtuple('MaskedLmInstance',
 class CreateBertPretrainingData(object):
     def __init__(self, args):
         self.args = args
-        self._bert_tokenizer_init(args.special_tok)
+        self._bert_tokenizer_init()
 
-    def _bert_tokenizer_init(self, special_tok, bert_pretrained='bert-base-uncased'):
+    def _bert_tokenizer_init(self, bert_pretrained='bert-base-uncased'):
         bert_pretrained_dir = os.path.join('../rsc', bert_pretrained)
         vocab_file_path = '%s-vocab.txt' % bert_pretrained
 
         self._bert_tokenizer = BertTokenizer(vocab_file=os.path.join(bert_pretrained_dir, vocab_file_path))
-        self._bert_tokenizer.add_tokens([special_tok])
 
         print('BERT tokenizer init completes')
 
-    def _add_special_tokens(self, tokens, special_tok):
-        tokens = tokens + [special_tok]
-        return tokens
-
     def create_training_instances(self, input_file, max_seq_length,
                                   dupe_factor, short_seq_prob, masked_lm_prob,
-                                  max_predictions_per_seq, rng, special_tok=None):
+                                  max_predictions_per_seq, rng):
         '''Create `TrainingInstance`s from raw text.'''
         all_documents = [[]]
 
@@ -86,9 +81,6 @@ class CreateBertPretrainingData(object):
                     if document_cnt % 50000 == 0:
                         print('%d documents have been tokenized!' % document_cnt)
                 tokens = self._bert_tokenizer.tokenize(line)
-
-                if special_tok:
-                    tokens = self._add_special_tokens(tokens, special_tok)  # special tok per sentence
 
                 if tokens:
                     all_documents[-1].append(tokens)
@@ -412,7 +404,6 @@ if __name__ == '__main__':
                             help='Masked LM probability.')
     arg_parser.add_argument('--short_seq_prob', dest='short_seq_prob', type=float, default=0.1,
                             help='Probability of creating sequences which are shorter than the maximum length.')
-    arg_parser.add_argument('--special_tok', dest='special_tok', type=str, help='Special Token.')
     args = arg_parser.parse_args()
 
     create_data = CreateBertPretrainingData(args)
@@ -420,4 +411,4 @@ if __name__ == '__main__':
     rng = random.Random(args.random_seed)
     create_data.create_training_instances(
         args.input_file, args.max_seq_length, args.dupe_factor,
-        args.short_seq_prob, args.masked_lm_prob, args.max_predictions_per_seq, rng, args.special_tok)
+        args.short_seq_prob, args.masked_lm_prob, args.max_predictions_per_seq)

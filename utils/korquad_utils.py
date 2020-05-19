@@ -4,9 +4,10 @@ import collections
 import json
 import logging
 import math
+import numpy as np
 
 from io import open
-
+from tqdm import tqdm
 from utils.tokenization import BasicTokenizer, whitespace_tokenize
 
 logger = logging.getLogger(__name__)
@@ -159,6 +160,19 @@ def read_squad_examples(input_file, is_training, version_2_with_negative):
                 examples.append(example)
     return examples
 
+def create_examples_to_corpus(input_file, output_file, is_training, version_2_with_negative):
+    examples = read_squad_examples(input_file, is_training, version_2_with_negative)
+    corpus = []
+
+    for example in tqdm(examples):
+        corpus.append(example.question_text)
+        corpus.append(' '.join(example.doc_tokens))
+
+    with open(output_file, 'w') as f:
+        for seq in tqdm(corpus):
+            f.write(f'{seq}\n')
+
+        f.close()
 
 def convert_examples_to_features(examples, tokenizer, max_seq_length,
                                  doc_stride, max_query_length, is_training):
