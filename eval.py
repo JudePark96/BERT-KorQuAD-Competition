@@ -166,7 +166,7 @@ def main():
     # Set seed
     set_seed(args)
 
-    tokenizer = BertTokenizer(vocab_file='data/wiki_vocab_32k.txt', do_basic_tokenize=True, max_len=args.max_seq_length)
+    tokenizer = BertTokenizer(vocab_file='./rsc/pretrained/ko_vocab_32k.txt', do_basic_tokenize=True, max_len=args.max_seq_length)
     config = Config.from_json_file(args.config_name)
     model = QuestionAnswering(config)
     model.load_state_dict(torch.load(args.checkpoint))
