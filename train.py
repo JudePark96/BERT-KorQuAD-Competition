@@ -215,8 +215,8 @@ def main():
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
 
-            scheduler.step()
             optimizer.step()
+            scheduler.step()
             optimizer.zero_grad()
             global_step += 1
             tr_step += 1
