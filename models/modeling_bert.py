@@ -267,7 +267,7 @@ class PreTrainingHeads(nn.Module):  #
         super(PreTrainingHeads, self).__init__()
         self.predictions = LMPredictionHead(config, embedding_weights)
 
-    def forward(self, sequence_output):
+    def forward(self, sequence_output, pooled_output):
         prediction_scores = self.predictions(sequence_output)
 
         return prediction_scores
@@ -310,7 +310,7 @@ class Model(nn.Module):
 
         sequence_output = encoded_layers[-1]
         pooled_output = self.pooler(sequence_output)
-        return sequence_output , pooled_output
+        return sequence_output, pooled_output
 
 
 class BertForMaskedLM(nn.Module):
