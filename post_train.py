@@ -15,10 +15,14 @@ import torch
 from torch.utils.data import (DataLoader, RandomSampler, TensorDataset)
 from tqdm import tqdm, trange
 
+# +
 from models.modeling_bert import Config, BertForMaskedLM
 from utils.optimization import AdamW, WarmupLinearSchedule
 from utils.tokenization import BertTokenizer
 from utils.post_training_dataset import BertPostTrainingDataset
+
+from torch.utils.tensorboard import SummaryWriter
+# -
 
 if sys.version_info[0] == 2:
     import cPickle as pickle
@@ -45,6 +49,7 @@ def main():
     parser.add_argument("--checkpoint", default='pretrain_ckpt/bert_small_ckpt.bin',
                         type=str,
                         help="checkpoint")
+    parser.add_argument('--log_dir', default='./runs', type=str)
     parser.add_argument("--model_config", default='data/bert_small.json',
                         type=str)
 
@@ -83,6 +88,7 @@ def main():
 
     args = parser.parse_args()
 
+    summary_writer = SummaryWriter(args.log_dir)
     device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
     n_gpu = torch.cuda.device_count()
     logger.info("device: {} n_gpu: {}, 16-bits training: {}".format(
@@ -183,6 +189,10 @@ def main():
             mean_loss = total_loss / tr_step
             iter_bar.set_description("Train Step(%d / %d) (Mean loss=%5.5f) (loss=%5.5f)" %
                                      (global_step, num_train_step, mean_loss, loss.item()))
+            
+            if (global_step + 1) % 100 == 0:
+                summary_writer.add_sclar('Train/Mean_Loss', mean_loss, global_step)
+                summary_writer.add_sclar('Train/Loss', loss.item(), global_step)
 
         logger.info("** ** * Saving file * ** **")
         model_checkpoint = "pt_bert_%d.bin" % (epoch)
