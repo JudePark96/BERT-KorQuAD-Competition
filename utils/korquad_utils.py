@@ -165,7 +165,7 @@ def create_examples_to_corpus(input_file, output_file, is_training, version_2_wi
     corpus = []
 
     for example in tqdm(examples):
-        corpus.append(example.question_text)
+        corpus.append(example.question_text + ' ' + ' '.join(example.doc_tokens))
         corpus.append(' '.join(example.doc_tokens))
 
     with open(output_file, 'w') as f:
