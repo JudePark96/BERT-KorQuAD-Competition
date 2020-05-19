@@ -49,9 +49,9 @@ class CreateBertPretrainingData(object):
         self.args = args
         self._bert_tokenizer_init()
 
-    def _bert_tokenizer_init(self, bert_pretrained='bert-base-uncased'):
-        bert_pretrained_dir = os.path.join('../rsc', bert_pretrained)
-        vocab_file_path = '%s-vocab.txt' % bert_pretrained
+    def _bert_tokenizer_init(self):
+        bert_pretrained_dir = os.path.join('./rsc/pretrained/')
+        vocab_file_path = 'ko_vocab_32k.txt'
 
         self._bert_tokenizer = BertTokenizer(vocab_file=os.path.join(bert_pretrained_dir, vocab_file_path))
 
@@ -396,7 +396,7 @@ if __name__ == '__main__':
                             help='Maximum sequence length.')
     arg_parser.add_argument('--max_predictions_per_seq', dest='max_predictions_per_seq', type=int, default=70,
                             help='Maximum number of masked LM predictions per sequence.')
-    arg_parser.add_argument('--random_seed', dest='random_seed', type=int, default=12345,
+    arg_parser.add_argument('--random_seed', dest='random_seed', type=int, default=42,
                             help='Random seed for data generation.')
     arg_parser.add_argument('--dupe_factor', dest='dupe_factor', type=int, default=10,
                             help='Number of times to duplicate the input data (with different masks).')
@@ -411,4 +411,4 @@ if __name__ == '__main__':
     rng = random.Random(args.random_seed)
     create_data.create_training_instances(
         args.input_file, args.max_seq_length, args.dupe_factor,
-        args.short_seq_prob, args.masked_lm_prob, args.max_predictions_per_seq)
+        args.short_seq_prob, args.masked_lm_prob, args.max_predictions_per_seq, rng)
