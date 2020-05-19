@@ -96,14 +96,10 @@ def main():
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
 
-    tokenizer = BertTokenizer('./rsc/pretrained/ko_vocab_32k.txt',
-                              max_len=args.max_seq_length,
-                              do_basic_tokenize=True)
-
     # Prepare model
     config = Config.from_json_file(args.model_config)
     model = BertForMaskedLM(config)
-    # model.bert.load_state_dict(torch.load(args.checkpoint))
+    model.bert.load_state_dict(torch.load(args.checkpoint))
     num_params = count_parameters(model)
     logger.info("Total Parameter: %d" % num_params)
     model.to(device)
@@ -182,7 +178,7 @@ def main():
                                      (global_step, num_train_step, mean_loss, loss.item()))
 
         logger.info("** ** * Saving file * ** **")
-        model_checkpoint = "korquad_%d.bin" % (epoch)
+        model_checkpoint = "pt_bert_%d.bin" % (epoch)
         logger.info(model_checkpoint)
         output_model_file = os.path.join(args.output_dir, model_checkpoint)
         if n_gpu > 1:
