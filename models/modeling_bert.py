@@ -315,9 +315,10 @@ class Model(nn.Module):
 
 class BertForMaskedLM(nn.Module):
     def __init__(self, config) -> None:
-        super(BertForMaskedLM).__init__()
+        super(BertForMaskedLM, self).__init__()
+        self.config = config
         self.bert = Model(config)
-        self.cls = PreTrainingHeads(config)
+        self.cls = PreTrainingHeads(config, self.bert.embeddings.word_embeddings.weight)
 
         self.tie_weights()
 
@@ -337,10 +338,7 @@ class BertForMaskedLM(nn.Module):
         self._tie_or_clone_weights(self.cls.predictions.decoder, self.bert.embeddings.word_embeddings)
 
     def _tie_or_clone_weights(self, first_module, second_module):
-        if self.config.torchscript:
-            first_module.weight = nn.Parameter(second_module.weight.clone())
-        else:
-            first_module.weight = second_module.weight
+        first_module.weight = second_module.weight
 
         if hasattr(first_module, 'bias') and first_module.bias is not None:
             first_module.bias.data = torch.nn.functional.pad(
