@@ -17,7 +17,7 @@ from tqdm import tqdm, trange
 from models.modeling_bert import Config, BertForMaskedLM
 from utils.optimization import AdamW, WarmupLinearSchedule
 from utils.tokenization import BertTokenizer
-from utils.korquad_utils import read_squad_examples, convert_examples_to_features
+from utils.post_training_dataset import BertPostTrainingDataset
 
 if sys.version_info[0] == 2:
     import cPickle as pickle
@@ -38,8 +38,6 @@ logger = logging.getLogger(__name__)
 def main():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument()
-
     # Required Parameters
     parser.add_argument("--output_dir", default='output', type=str,
                         help="The output directory where the model checkpoints and predictions will be written.")
@@ -50,8 +48,8 @@ def main():
                         type=str)
 
     # Other Parameters
-    parser.add_argument("--corpus", default='./rsc/corpus/korquad_corpus.txt', type=str,
-                        help="SQuAD json for training. E.g., train-v1.1.json")
+    parser.add_argument("--corpus", default='./rsc/corpus/korquad_corpus_post_training.hdf5', type=str,
+                        help="SQuAD corpus for post-training.")
     parser.add_argument("--max_seq_length", default=512, type=int,
                         help="The maximum total input sequence length after WordPiece tokenization. Sequences "
                              "longer than this will be truncated, and sequences shorter than this will be padded.")
@@ -66,6 +64,8 @@ def main():
     parser.add_argument("--warmup_proportion", default=0.1, type=float,
                         help="Proportion of training to perform linear learning rate warmup for. E.g., 0.1 = 10%% "
                              "of training.")
+    parser.add_argument("--num_workers", default=8, type=int,
+                        help="Proportion of workers of DataLoader")
     parser.add_argument("--no_cuda",
                         action='store_true',
                         help="Whether not to use CUDA when available")
@@ -108,6 +108,98 @@ def main():
     logger.info("Total Parameter: %d" % num_params)
     model.to(device)
 
-    cached_train_features_file = f'args.corpus'
+    post_training_dataset = BertPostTrainingDataset(args.corpus)
 
+    num_train_optimization_steps = int(len(post_training_dataset) / args.train_batch_size) * args.num_train_epochs
 
+    # Prepare optimizer
+    param_optimizer = list(model.named_parameters())
+    no_decay = ['bias', 'LayerNorm.weight']
+    optimizer_grouped_parameters = [
+        {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)],
+         'weight_decay': 0.01},
+        {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
+    ]
+
+    optimizer = AdamW(optimizer_grouped_parameters,
+                      lr=args.learning_rate,
+                      eps=args.adam_epsilon)
+    scheduler = WarmupLinearSchedule(optimizer,
+                                     warmup_steps=num_train_optimization_steps * 0.1,
+                                     t_total=num_train_optimization_steps)
+
+    if args.fp16:
+        try:
+            from apex import amp
+        except ImportError:
+            raise ImportError(
+                "Please install apex from https://www.github.com/nvidia/apex to use distributed and fp16 training.")
+        model, optimizer = amp.initialize(model, optimizer, opt_level=args.fp16_opt_level)
+
+    logger.info("***** Running training *****")
+    logger.info("  Num orig examples = %d", len(post_training_dataset))
+    logger.info("  Batch size = %d", args.train_batch_size)
+    logger.info("  Num steps = %d", num_train_optimization_steps)
+
+    num_train_step = num_train_optimization_steps
+
+    train_sampler = RandomSampler(post_training_dataset)
+    train_dataloader = DataLoader(post_training_dataset, sampler=train_sampler, batch_size=args.train_batch_size)
+
+    model.train()
+    global_step = 0
+    epoch = 0
+
+    for _ in trange(int(args.num_train_epochs), desc="Epoch"):
+        iter_bar = tqdm(train_dataloader, desc="Train(XX Epoch) Step(XX/XX) (Mean loss=X.X) (loss=X.X)")
+        tr_step, total_loss, mean_loss = 0, 0., 0.
+
+        for step, batch in enumerate(iter_bar):
+            if n_gpu == 1:
+                batch = tuple(t.to(device) for t in batch)
+
+            input_ids = batch["input_ids"],
+            token_type_ids = batch["token_type_ids"],
+            attention_mask = batch["attention_mask"],
+            masked_lm_labels = batch["masked_lm_labels"],
+
+            loss = model(
+                input_ids,
+                token_type_ids=token_type_ids,
+                attention_mask=attention_mask,
+                masked_lm_labels=masked_lm_labels
+            )
+
+            if n_gpu > 1:
+                loss = loss.mean()
+
+            if args.fp16:
+                with amp.scale_loss(loss, optimizer) as scaled_loss:
+                    scaled_loss.backward()
+                torch.nn.utils.clip_grad_norm_(amp.master_params(optimizer), args.max_grad_norm)
+            else:
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
+
+            scheduler.step()
+            optimizer.step()
+            optimizer.zero_grad()
+            global_step += 1
+            tr_step += 1
+            total_loss += loss
+            mean_loss = total_loss / tr_step
+            iter_bar.set_description("Train Step(%d / %d) (Mean loss=%5.5f) (loss=%5.5f)" %
+                                     (global_step, num_train_step, mean_loss, loss.item()))
+
+        logger.info("** ** * Saving file * ** **")
+        model_checkpoint = "korquad_%d.bin" % (epoch)
+        logger.info(model_checkpoint)
+        output_model_file = os.path.join(args.output_dir, model_checkpoint)
+        if n_gpu > 1:
+            torch.save(model.module.state_dict(), output_model_file)
+        else:
+            torch.save(model.state_dict(), output_model_file)
+        epoch += 1
+
+if __name__ == '__main__':
+    main()
