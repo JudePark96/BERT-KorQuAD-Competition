@@ -191,8 +191,8 @@ def main():
                                      (global_step, num_train_step, mean_loss, loss.item()))
             
             if (global_step + 1) % 100 == 0:
-                summary_writer.add_sclar('Train/Mean_Loss', mean_loss, global_step)
-                summary_writer.add_sclar('Train/Loss', loss.item(), global_step)
+                summary_writer.add_scalar('Train/Mean_Loss', mean_loss, global_step)
+                summary_writer.add_scalar('Train/Loss', loss.item(), global_step)
 
         logger.info("** ** * Saving file * ** **")
         model_checkpoint = "pt_bert_%d.bin" % (epoch)
