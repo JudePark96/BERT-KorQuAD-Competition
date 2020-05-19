@@ -7,6 +7,7 @@ import random
 import sys
 from io import open
 
+import torch.nn as nn
 import numpy as np
 import torch
 from torch.utils.data import (DataLoader, RandomSampler, TensorDataset)
@@ -115,6 +116,10 @@ def main():
     config = Config.from_json_file(args.model_config)
     model = QuestionAnswering(config)
     model.bert.load_state_dict(torch.load(args.checkpoint))
+
+    if n_gpu > 1:
+        model = nn.DataParallel(model)
+
     num_params = count_parameters(model)
     logger.info("Total Parameter: %d" % num_params)
     model.to(device)
