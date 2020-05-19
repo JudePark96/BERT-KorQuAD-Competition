@@ -103,12 +103,12 @@ def main():
     # Prepare model
     config = Config.from_json_file(args.model_config)
     model = BertForMaskedLM(config)
-    model.bert.load_state_dict(torch.load(args.checkpoint))
+    # model.bert.load_state_dict(torch.load(args.checkpoint))
     num_params = count_parameters(model)
     logger.info("Total Parameter: %d" % num_params)
     model.to(device)
 
-    post_training_dataset = BertPostTrainingDataset(args.corpus)
+    post_training_dataset = BertPostTrainingDataset(args.corpus, args.max_seq_length)
 
     num_train_optimization_steps = int(len(post_training_dataset) / args.train_batch_size) * args.num_train_epochs
 
@@ -158,17 +158,7 @@ def main():
             if n_gpu == 1:
                 batch = tuple(t.to(device) for t in batch)
 
-            input_ids = batch["input_ids"],
-            token_type_ids = batch["token_type_ids"],
-            attention_mask = batch["attention_mask"],
-            masked_lm_labels = batch["masked_lm_labels"],
-
-            loss = model(
-                input_ids,
-                token_type_ids=token_type_ids,
-                attention_mask=attention_mask,
-                masked_lm_labels=masked_lm_labels
-            )
+            loss = model(batch)[0]
 
             if n_gpu > 1:
                 loss = loss.mean()

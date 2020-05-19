@@ -12,7 +12,6 @@ from torch.nn import CrossEntropyLoss, Dropout, Embedding, Softmax
 
 SEED = 42
 
-
 logger = logging.getLogger(__name__)
 
 LayerNorm = nn.LayerNorm
@@ -47,7 +46,7 @@ class Attention(nn.Module):
         self.attention_head_size = int(config.hidden_size / config.num_heads)
         self.all_head_size = self.num_attention_heads * self.attention_head_size
 
-        self.query =Linear(config.hidden_size, self.all_head_size)
+        self.query = Linear(config.hidden_size, self.all_head_size)
         self.key = Linear(config.hidden_size, self.all_head_size)
         self.value = Linear(config.hidden_size, self.all_head_size)
 
@@ -200,6 +199,7 @@ class Config(object):
 class Embeddings(nn.Module):
     """Construct the embeddings from word, position and token_type embeddings.
     """
+
     def __init__(self, config):
         super(Embeddings, self).__init__()
         self.word_embeddings = Embedding(config.vocab_size, config.hidden_size, padding_idx=0)
@@ -267,7 +267,7 @@ class PreTrainingHeads(nn.Module):  #
         super(PreTrainingHeads, self).__init__()
         self.predictions = LMPredictionHead(config, embedding_weights)
 
-    def forward(self, sequence_output, pooled_output):
+    def forward(self, sequence_output):
         prediction_scores = self.predictions(sequence_output)
 
         return prediction_scores
@@ -300,8 +300,8 @@ class Model(nn.Module):
             attention_mask = torch.ones_like(input_ids)
 
         extended_attention_mask = attention_mask.unsqueeze(1).unsqueeze(2)
-        extended_attention_mask = extended_attention_mask.to(dtype=next(self.parameters()).dtype) # fp16 compatibility
-        #extended_attention_mask = extended_attention_mask.to(torch.float32)
+        extended_attention_mask = extended_attention_mask.to(dtype=next(self.parameters()).dtype)  # fp16 compatibility
+        # extended_attention_mask = extended_attention_mask.to(torch.float32)
         extended_attention_mask = (1.0 - extended_attention_mask) * -10000.0
 
         embedding_output = self.embeddings(input_ids, token_type_ids)
@@ -322,14 +322,17 @@ class BertForMaskedLM(nn.Module):
 
         self.tie_weights()
 
-    def forward(self, input_ids, token_type_ids=None, attention_mask=None, masked_lm_labels=None):
-        outputs = self.bert(input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask)
+    def forward(self, batch: dict):
+        outputs = self.bert(input_ids=batch['input_ids'],
+                            token_type_ids=batch['token_type_ids'],
+                            attention_mask=batch['attention_mask'])
         sequence_output = outputs[0]
         prediction_scores = self.cls(sequence_output)
 
-        if masked_lm_labels is not None:
+        if batch['masked_lm_labels'] is not None:
             loss_fct = CrossEntropyLoss(ignore_index=-1)
-            masked_lm_loss = loss_fct(prediction_scores.view(-1, self.config.vocab_size), masked_lm_labels.view(-1))
+            masked_lm_loss = loss_fct(
+                prediction_scores.view(-1, self.config.vocab_size), batch['masked_lm_labels'].view(-1))
             outputs = (masked_lm_loss,) + outputs
 
         return outputs
@@ -347,6 +350,7 @@ class BertForMaskedLM(nn.Module):
                 'constant',
                 0
             )
+
 
 class QuestionAnswering(nn.Module):
     def __init__(self, config):

@@ -6,10 +6,10 @@ from torch.utils.data import Dataset
 
 
 class BertPostTrainingDataset(Dataset):
-    def __init__(self, corpus_file: str, split: str = ''):
+    def __init__(self, corpus_file: str, max_seq_length: int = 512, split: str = ''):
         super(BertPostTrainingDataset, self).__init__()
-
         self.corpus_file = corpus_file
+        self.max_seq_length = max_seq_length
         self.split = split
 
         with h5py.File(self.corpus_file, 'r') as features_hdf:
@@ -22,7 +22,8 @@ class BertPostTrainingDataset(Dataset):
 
     def __getitem__(self, index):
         features = self._read_hdf_features(index)
-        anno_masked_lm_labels = self._anno_mask_inputs(features['masked_lm_ids'], features['masked_lm_positions'])
+        anno_masked_lm_labels = self._anno_mask_inputs(features['masked_lm_ids'], features['masked_lm_positions'],
+                                                       self.max_seq_length)
         curr_features = dict()
         for feat_key in features.keys():
             curr_features[feat_key] = torch.tensor(features[feat_key]).long()
@@ -37,7 +38,7 @@ class BertPostTrainingDataset(Dataset):
 
         return features
 
-    def _anno_mask_inputs(self, masked_lm_ids, masked_lm_positions, max_seq_len=320):
+    def _anno_mask_inputs(self, masked_lm_ids, masked_lm_positions, max_seq_len=512):
         anno_masked_lm_labels = [-1] * max_seq_len
 
         for pos, label in zip(masked_lm_positions, masked_lm_ids):
