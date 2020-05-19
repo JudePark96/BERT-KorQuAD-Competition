@@ -1,10 +1,10 @@
 python3 train.py \
-  --output_dir ./rsc/output \
+  --output_dir ./rsc/output/fine_tunned/ \
   --checkpoint ./rsc/post_trained/pt_bert_3.bin \
-  --log_dir './fine_tune_runs/' \
+  --log_dir ./fine_tune_runs/ \
   --model_config ./rsc/pretrained/bert_small.json \
   --train_file ./rsc/data/KorQuAD_v1.0_train.json \
-  --max_seq_length 256 \
+  --max_seq_length 192 \
   --max_query_length 96 \
   --max_answer_length 30 \
   --doc_stride 128 \
