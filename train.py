@@ -17,6 +17,8 @@ from models.modeling_bert import QuestionAnswering, Config
 from utils.optimization import AdamW, WarmupLinearSchedule
 from utils.tokenization import BertTokenizer
 from utils.korquad_utils import read_squad_examples, convert_examples_to_features
+from torch.utils.tensorboard import SummaryWriter
+
 
 if sys.version_info[0] == 2:
     import cPickle as pickle
@@ -45,6 +47,8 @@ def main():
                         help="checkpoint")
     parser.add_argument("--model_config", default='data/bert_small.json',
                         type=str)
+    parser.add_argument('--log_dir', default='./runs', type=str)
+
     # Other parameters
     parser.add_argument("--train_file", default='data/KorQuAD_v1.0_train.json', type=str,
                         help="SQuAD json for training. E.g., train-v1.1.json")
@@ -95,6 +99,7 @@ def main():
 
     args = parser.parse_args()
 
+    summary_writer = SummaryWriter(args.log_dir)
     device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
     n_gpu = torch.cuda.device_count()
     logger.info("device: {} n_gpu: {}, 16-bits training: {}".format(
@@ -216,6 +221,10 @@ def main():
             mean_loss = total_loss / tr_step
             iter_bar.set_description("Train Step(%d / %d) (Mean loss=%5.5f) (loss=%5.5f)" %
                                      (global_step, num_train_step, mean_loss, loss.item()))
+
+            if global_step % 100 == 0:
+                summary_writer.add_scalar('Train/Mean_Loss', mean_loss, global_step)
+                summary_writer.add_scalar('Train/Loss', loss.item(), global_step)
 
         logger.info("** ** * Saving file * ** **")
         model_checkpoint = "korquad_%d.bin" % (epoch)

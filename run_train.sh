@@ -1,0 +1,14 @@
+python3 train.py \
+  --output_dir ./rsc/output \
+  --checkpoint ./rsc/post_trained/pt_bert_3.bin \
+  --log_dir './fine_tune_runs/' \
+  --model_config ./rsc/pretrained/bert_small.json \
+  --train_file ./rsc/data/KorQuAD_v1.0_train.json \
+  --max_seq_length 256 \
+  --max_query_length 96 \
+  --max_answer_length 30 \
+  --doc_stride 128 \
+  --train_batch_size 64 \
+  --learning_rate 5e-5 \
+  --num_train_epochs 4.0 \
+  --seed 42
