@@ -1,14 +1,13 @@
+from __future__ import absolute_import, division, print_function
+
 import collections
 import json
 import logging
 import math
-import re
-import string
-import sys
-from collections import Counter
+
 from io import open
 
-SEED = 42
+from utils.tokenization import BasicTokenizer, whitespace_tokenize
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +17,7 @@ class SquadExample(object):
     A single training/test example for the Squad dataset.
     For examples without an answer, the start and end position are -1.
     """
+
     def __init__(self,
                  qas_id,
                  question_text,
@@ -322,7 +322,6 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
 
     return features
 
-
 def _improve_answer_span(doc_tokens, input_start, input_end, tokenizer,
                          orig_answer_text):
     """Returns tokenized answer spans that better match the annotated answer."""
@@ -536,7 +535,7 @@ def write_predictions(all_examples, all_features, all_results, n_best_size,
 
             # In very rare edge cases we could only have single null prediction.
             # So we just create a nonce prediction in this case to avoid failure.
-            if len(nbest) == 1:
+            if len(nbest)==1:
                 nbest.insert(0,
                              _NbestPrediction(text="empty", start_logit=0.0, end_logit=0.0))
 
@@ -722,99 +721,3 @@ def _compute_softmax(scores):
     for score in exp_scores:
         probs.append(score / total_sum)
     return probs
-
-
-'''KorQuAD v1.0에 대한 공식 평가 스크립트 '''
-'''본 스크립트는 SQuAD v1.1 평가 스크립트 https://rajpurkar.github.io/SQuAD-explorer/ 를 바탕으로 작성됨.'''
-
-
-def normalize_answer(s):
-    def remove_(text):
-        ''' 불필요한 기호 제거 '''
-        text = re.sub("'", " ", text)
-        text = re.sub('"', " ", text)
-        text = re.sub('《', " ", text)
-        text = re.sub('》', " ", text)
-        text = re.sub('<', " ", text)
-        text = re.sub('>', " ", text)
-        text = re.sub('〈', " ", text)
-        text = re.sub('〉', " ", text)
-        text = re.sub("\(", " ", text)
-        text = re.sub("\)", " ", text)
-        text = re.sub("‘", " ", text)
-        text = re.sub("’", " ", text)
-        return text
-
-    def white_space_fix(text):
-        return ' '.join(text.split())
-
-    def remove_punc(text):
-        exclude = set(string.punctuation)
-        return ''.join(ch for ch in text if ch not in exclude)
-
-    def lower(text):
-        return text.lower()
-
-    return white_space_fix(remove_punc(lower(remove_(s))))
-
-
-def f1_score(prediction, ground_truth):
-    prediction_tokens = normalize_answer(prediction).split()
-    ground_truth_tokens = normalize_answer(ground_truth).split()
-
-    # F1 by character
-    prediction_Char = []
-    for tok in prediction_tokens:
-        now = [a for a in tok]
-        prediction_Char.extend(now)
-
-    ground_truth_Char = []
-    for tok in ground_truth_tokens:
-        now = [a for a in tok]
-        ground_truth_Char.extend(now)
-
-    common = Counter(prediction_Char) & Counter(ground_truth_Char)
-    num_same = sum(common.values())
-    if num_same == 0:
-        return 0
-
-    precision = 1.0 * num_same / len(prediction_Char)
-    recall = 1.0 * num_same / len(ground_truth_Char)
-    f1 = (2 * precision * recall) / (precision + recall)
-
-    return f1
-
-
-def exact_match_score(prediction, ground_truth):
-    return (normalize_answer(prediction) == normalize_answer(ground_truth))
-
-
-def metric_max_over_ground_truths(metric_fn, prediction, ground_truths):
-    scores_for_ground_truths = []
-    for ground_truth in ground_truths:
-        score = metric_fn(prediction, ground_truth)
-        scores_for_ground_truths.append(score)
-    return max(scores_for_ground_truths)
-
-
-def evaluate(dataset, predictions):
-    f1 = exact_match = total = 0
-    for article in dataset:
-        for paragraph in article['paragraphs']:
-            for qa in paragraph['qas']:
-                total += 1
-                if qa['id'] not in predictions:
-                    message = 'Unanswered question ' + qa['id'] + \
-                              ' will receive score 0.'
-                    print(message, file=sys.stderr)
-                    continue
-                ground_truths = list(map(lambda x: x['text'], qa['answers']))
-                prediction = predictions[qa['id']]
-                exact_match += metric_max_over_ground_truths(
-                    exact_match_score, prediction, ground_truths)
-                f1 += metric_max_over_ground_truths(
-                    f1_score, prediction, ground_truths)
-
-    exact_match = 100.0 * exact_match / total
-    f1 = 100.0 * f1 / total
-    return {'exact_match': exact_match, 'f1': f1}

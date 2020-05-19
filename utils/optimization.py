@@ -1,12 +1,3 @@
-import logging
-import math
-
-import torch
-from torch.optim.lr_scheduler import LambdaLR
-from torch.optim.optimizer import Optimizer
-
-SEED = 42
-
 # coding=utf-8
 # Copyright 2018 The Google AI Language Team Authors and The HuggingFace Inc. team.
 #
@@ -22,6 +13,13 @@ SEED = 42
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """PyTorch optimization for BERT model."""
+
+import logging
+import math
+
+import torch
+from torch.optim import Optimizer
+from torch.optim.lr_scheduler import LambdaLR
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +106,6 @@ class WarmupCosineWithHardRestartsSchedule(LambdaLR):
 
 class AdamW(Optimizer):
     """ Implements Adam algorithm with weight decay fix.
-
     Parameters:
         lr (float): learning rate. Default 1e-3.
         betas (tuple of 2 floats): Adams beta parameters (b1, b2). Default: (0.9, 0.999)
@@ -131,7 +128,6 @@ class AdamW(Optimizer):
 
     def step(self, closure=None):
         """Performs a single optimization step.
-
         Arguments:
             closure (callable, optional): A closure that reevaluates the model
                 and returns the loss.

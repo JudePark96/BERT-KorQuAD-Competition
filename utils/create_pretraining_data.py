@@ -50,7 +50,7 @@ class CreateBertPretrainingData(object):
         self._bert_tokenizer_init(args.special_tok)
 
     def _bert_tokenizer_init(self, special_tok, bert_pretrained='bert-base-uncased'):
-        bert_pretrained_dir = os.path.join('./rsc', bert_pretrained)
+        bert_pretrained_dir = os.path.join('../rsc', bert_pretrained)
         vocab_file_path = '%s-vocab.txt' % bert_pretrained
 
         self._bert_tokenizer = BertTokenizer(vocab_file=os.path.join(bert_pretrained_dir, vocab_file_path))

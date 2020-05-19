@@ -1,11 +1,3 @@
-import collections
-import logging
-import os
-import unicodedata
-from io import open
-
-SEED = 42
-
 # coding=utf-8
 # Copyright 2018 The Google AI Language Team Authors and The HuggingFace Inc. team.
 #
@@ -21,6 +13,15 @@ SEED = 42
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Tokenization classes."""
+
+from __future__ import absolute_import, division, print_function, unicode_literals
+
+import collections
+import logging
+import os
+import unicodedata
+from io import open
+
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +56,6 @@ class BertTokenizer(object):
     def __init__(self, vocab_file, do_lower_case=False, max_len=None, do_basic_tokenize=True,
                  never_split=("[UNK]", "[SEP]", "[PAD]", "[CLS]", "[MASK]")):
         """Constructs a BertTokenizer.
-
         Args:
           vocab_file: Path to a one-wordpiece-per-line vocabulary file
           do_lower_case: Whether to lower case the input
@@ -120,7 +120,6 @@ class BasicTokenizer(object):
                  do_lower_case=True,
                  never_split=("[UNK]", "[SEP]", "[PAD]", "[CLS]", "[MASK]")):
         """Constructs a BasicTokenizer.
-
         Args:
           do_lower_case: Whether to lower case the input.
         """
@@ -240,18 +239,14 @@ class WordpieceTokenizer(object):
 
     def tokenize(self, text):
         """Tokenizes a piece of text into its word pieces.
-
         This uses a greedy longest-match-first algorithm to perform tokenization
         using the given vocabulary.
-
         For example:
           input = "unaffable"
           output = ["un", "##aff", "##able"]
-
         Args:
           text: A single token or whitespace separated tokens. This should have
             already been passed through `BasicTokenizer`.
-
         Returns:
           A list of wordpiece tokens.
         """
