@@ -352,11 +352,10 @@ class BertForMaskedLM(nn.Module):
                 0
             )
 
-
 class QuestionAnswering(nn.Module):
     def __init__(self, config):
         super(QuestionAnswering, self).__init__()
-        self.bert = Model(config)
+        self.bert = BertForMaskedLM(config)
         # TODO check with Google if it's normal there is no dropout on the token classifier of SQuAD in the TF version
         # self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.qa_outputs = Linear(config.hidden_size, 2)
