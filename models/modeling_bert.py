@@ -165,7 +165,7 @@ class Config(object):
             self.num_hidden_layers = num_hidden_layers
             self.ff_dim = ff_dim
             self.num_heads = num_heads
-            self.dropout_prob = dropout_prob
+            self.hidden_dropout_prob = dropout_prob
             self.max_position_embeddings = max_position_embeddings
             self.type_vocab_size = type_vocab_size
             self.initializer_range = initializer_range
