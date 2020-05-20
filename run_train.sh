@@ -3,6 +3,7 @@ python3 train.py \
   --checkpoint ./rsc/post_trained/pt_bert_3.bin \
   --log_dir ./fine_tune_runs/ \
   --model_config ./rsc/pretrained/bert_small.json \
+  --model_type bert-pt-mean \
   --train_file ./rsc/data/KorQuAD_v1.0_train.json \
   --max_seq_length 192 \
   --max_query_length 96 \

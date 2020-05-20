@@ -13,7 +13,7 @@ import torch
 from torch.utils.data import (DataLoader, RandomSampler, TensorDataset)
 from tqdm import tqdm, trange
 
-from models.modeling_bert import QuestionAnswering, Config
+from models.modeling_bert import QuestionAnswering, Config, PoolingQuestionAnswering
 from utils.optimization import AdamW, WarmupLinearSchedule
 from utils.tokenization import BertTokenizer
 from utils.korquad_utils import read_squad_examples, convert_examples_to_features
@@ -55,6 +55,8 @@ def main():
     parser.add_argument("--max_seq_length", default=512, type=int,
                         help="The maximum total input sequence length after WordPiece tokenization. Sequences "
                              "longer than this will be truncated, and sequences shorter than this will be padded.")
+    parser.add_argument("--model_type", default='bert', type=str,
+                        help="Which type you are using? e.g) bert, bert-pt, bert-pt-max, bert-pt-mean, etc")
     parser.add_argument("--doc_stride", default=128, type=int,
                         help="When splitting up a long document into chunks, how much stride to take between chunks.")
     parser.add_argument("--max_query_length", default=96, type=int,
@@ -118,7 +120,13 @@ def main():
                               do_basic_tokenize=True)
     # Prepare model
     config = Config.from_json_file(args.model_config)
-    model = QuestionAnswering(config)
+    model_type = args.model_type
+
+    if model_type == 'bert-pt':
+        model = QuestionAnswering(config)
+    elif model_type == 'bert-pt-mean':
+        model = PoolingQuestionAnswering(config, policy='mean')
+
     model.bert.load_state_dict(torch.load(args.checkpoint))
 
     if n_gpu > 1:
