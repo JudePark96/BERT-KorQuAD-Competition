@@ -16,7 +16,7 @@ from torch.utils.data import (DataLoader, SequentialSampler,
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from models.modeling_bert import Config, QuestionAnswering
+from models.modeling_bert import Config, QuestionAnswering, PoolingQuestionAnswering
 from utils.korquad_utils import (read_squad_examples, convert_examples_to_features, RawResult, write_predictions)
 from utils.tokenization import BertTokenizer
 from debug.evaluate_korquad import evaluate as korquad_eval
@@ -121,7 +121,8 @@ def main():
                         help="SQuAD json for predictions. E.g., dev-v1.1.json or test-v1.1.json")
     parser.add_argument("--config_name", default="data/bert_small.json", type=str,
                         help="Pretrained config name or path if not the same as model_name")
-
+    parser.add_argument("--model_type", default='bert', type=str,
+                        help="Which type you are using? e.g) bert, bert-pt, bert-pt-max, bert-pt-mean, etc")
     parser.add_argument("--max_seq_length", default=512, type=int,
                         help="The maximum total input sequence length after WordPiece tokenization. Sequences "
                              "longer than this will be truncated, and sequences shorter than this will be padded.")
@@ -168,7 +169,12 @@ def main():
 
     tokenizer = BertTokenizer(vocab_file='./rsc/pretrained/ko_vocab_32k.txt', do_basic_tokenize=True, max_len=args.max_seq_length)
     config = Config.from_json_file(args.config_name)
-    model = QuestionAnswering(config)
+    
+    if args.model_type == 'bert-max':
+        model = PoolingQuestionAnswering(config, 'max')
+    else:
+        model = QuestionAnswering(config)
+    
     model.load_state_dict(torch.load(args.checkpoint))
     num_params = count_parameters(model)
     logger.info("Total Parameter: %d" % num_params)

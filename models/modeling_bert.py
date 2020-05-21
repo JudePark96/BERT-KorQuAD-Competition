@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import copy
 import json
 import logging
@@ -377,10 +378,17 @@ class QuestionAnswering(nn.Module):
             'masked_lm_labels': None
         }
         sequence_output, _ = self.bert(batch)
+        # ([10, 512, 256]))
+        # [bs x max_len x hidden_size]
+        print('sequence_shape', sequence_output.shape)
         logits = self.qa_outputs(sequence_output)
+        
+        # torch.Size([10, 512]) torch.Size([10, 512])
         start_logits, end_logits = logits.split(1, dim=-1)
         start_logits = start_logits.squeeze(-1)
         end_logits = end_logits.squeeze(-1)
+        
+        print(start_logits.shape, end_logits.shape)
 
         if start_positions is not None and end_positions is not None:
             # If we are on multi-GPU, split add a dimension
@@ -406,16 +414,14 @@ class PoolingQuestionAnswering(nn.Module):
     """
     Output 에서 [CLS] + Question + Answer 에 대하여 policy (max, min, mean) 으로 pooling 한다.
     """
-    def __init__(self, config, policy: str='mean'):
+    def __init__(self, config, policy: str):
         super(PoolingQuestionAnswering, self).__init__()
         self.bert = BertForMaskedLM(config)
         self.policy = policy
-        self.qa_outputs = nn.Sequential(
-            Linear(int(config.hidden_size * 3), int(int(config.hidden_size * 3) / 2)),
-            nn.Dropout(config.hidden_dropout_prob),
-            ACT2FN[config.act_fn],
-            Linear(int(int(config.hidden_size * 3) / 2), 2)
-        )
+        if self.policy == 'max':
+            # torch.nn.MaxPool1d(kernel_size, stride=None, padding=0, dilation=1, return_indices=False, ceil_mode=False)
+            self.pool = nn.MaxPool1d(kernel_size=2, stride=2)
+        self.qa_outputs = Linear(int(config.hidden_size / 2), 2)
         self.config = config
 
     def forward(self,
@@ -430,39 +436,17 @@ class PoolingQuestionAnswering(nn.Module):
             'masked_lm_labels': None
         }
 
-        # TODO => Fetching [SEP] offsets
-        offsets = []
-        sep_token_id = 3
-
-        for input_id in input_ids:
-            offset = []
-            for token in input_id:
-                if token.item() == sep_token_id:
-                    offset.append(token.item())
-
-            # Each input_id should have two [SEP] tokens
-            assert len(offset) == 2
-            offsets.append(offset)
-
         """
         :sentence_output: top hidden states or all hidden states. It depends on config.return_hidden_states
         :pooled_output: [CLS] hidden states
         """
+        
         sequence_output, pooled_output = self.bert(batch)
-        compositions = []
-
-        for hs, cls, sep_offset in zip(sequence_output, pooled_output, offsets):
-            # [seq_len x hidden_size]
-            if self.policy == 'mean':
-                first = hs[1:sep_offset[0]].mean(dim=0)
-                second = hs[sep_offset[0]+1:sep_offset[1]].mean(dim=0)
-
-                concat_hs = torch.cat([cls, first, second], dim=-1)
-                compositions.append(concat_hs)
-
-        compositions = torch.cat(compositions, dim=0)
-
-        logits = self.qa_outputs(compositions)
+        
+        if self.policy == 'max':
+            sequence_output = self.pool(sequence_output)
+        
+        logits = self.qa_outputs(sequence_output)
         start_logits, end_logits = logits.split(1, dim=-1)
         start_logits = start_logits.squeeze(-1)
         end_logits = end_logits.squeeze(-1)

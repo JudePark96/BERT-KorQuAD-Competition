@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import copy
 import json
 import logging
@@ -150,7 +151,8 @@ class Config(object):
                  dropout_prob=0.1,
                  max_position_embeddings=512,
                  type_vocab_size=2,
-                 initializer_range=0.02
+                 initializer_range=0.02,
+                 return_all_hidden_states=False
                  ):
         if isinstance(vocab_size_or_config_json_file, str):
             with open(vocab_size_or_config_json_file, "r", encoding='utf-8') as reader:
@@ -164,10 +166,11 @@ class Config(object):
             self.num_hidden_layers = num_hidden_layers
             self.ff_dim = ff_dim
             self.num_heads = num_heads
-            self.dropout_prob = dropout_prob
+            self.hidden_dropout_prob = dropout_prob
             self.max_position_embeddings = max_position_embeddings
             self.type_vocab_size = type_vocab_size
             self.initializer_range = initializer_range
+            self.return_all_hidden_states = return_all_hidden_states
         else:
             raise ValueError("First argument must be either a vocabulary size (int)"
                              "or the path to a pretrained model config file (str)")
@@ -291,6 +294,7 @@ class Pooler(nn.Module):
 class Model(nn.Module):
     def __init__(self, config):
         super(Model, self).__init__()
+        self.config = config
         self.embeddings = Embeddings(config)
         self.encoder = Encoder(config)
         self.pooler = Pooler(config)
@@ -310,6 +314,11 @@ class Model(nn.Module):
 
         sequence_output = encoded_layers[-1]
         pooled_output = self.pooler(sequence_output)
+
+        if self.config.return_all_hidden_states:
+            outputs = (encoded_layers, pooled_output)
+            return outputs
+
         return sequence_output, pooled_output
 
 
@@ -359,6 +368,7 @@ class QuestionAnswering(nn.Module):
         # TODO check with Google if it's normal there is no dropout on the token classifier of SQuAD in the TF version
         # self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.qa_outputs = Linear(config.hidden_size, 2)
+        self.config = config
 
     def forward(self, input_ids, token_type_ids=None, attention_mask=None, start_positions=None, end_positions=None):
         batch = {
@@ -368,6 +378,74 @@ class QuestionAnswering(nn.Module):
             'masked_lm_labels': None
         }
         sequence_output, _ = self.bert(batch)
+        # ([10, 512, 256]))
+        # [bs x max_len x hidden_size]
+        print('sequence_shape', sequence_output.shape)
+        logits = self.qa_outputs(sequence_output)
+        
+        # torch.Size([10, 512]) torch.Size([10, 512])
+        start_logits, end_logits = logits.split(1, dim=-1)
+        start_logits = start_logits.squeeze(-1)
+        end_logits = end_logits.squeeze(-1)
+        
+        print(start_logits.shape, end_logits.shape)
+
+        if start_positions is not None and end_positions is not None:
+            # If we are on multi-GPU, split add a dimension
+            if len(start_positions.size()) > 1:
+                start_positions = start_positions.squeeze(-1)
+            if len(end_positions.size()) > 1:
+                end_positions = end_positions.squeeze(-1)
+            # sometimes the start/end positions are outside our model inputs, we ignore these terms
+            ignored_index = start_logits.size(1)
+            start_positions.clamp_(0, ignored_index)
+            end_positions.clamp_(0, ignored_index)
+
+            loss_fct = CrossEntropyLoss(ignore_index=ignored_index)
+            start_loss = loss_fct(start_logits, start_positions)
+            end_loss = loss_fct(end_logits, end_positions)
+            total_loss = (start_loss + end_loss) / 2
+            return total_loss
+        else:
+            return start_logits, end_logits
+
+
+class PoolingQuestionAnswering(nn.Module):
+    """
+    Output 에서 [CLS] + Question + Answer 에 대하여 policy (max, min, mean) 으로 pooling 한다.
+    """
+    def __init__(self, config, policy: str):
+        super(PoolingQuestionAnswering, self).__init__()
+        self.bert = BertForMaskedLM(config)
+        self.policy = policy
+        if self.policy == 'max':
+            # torch.nn.MaxPool1d(kernel_size, stride=None, padding=0, dilation=1, return_indices=False, ceil_mode=False)
+            self.pool = nn.MaxPool1d(kernel_size=2, stride=2)
+        self.qa_outputs = Linear(int(config.hidden_size / 2), 2)
+        self.config = config
+
+    def forward(self,
+                input_ids: torch.Tensor,
+                token_type_ids: torch.Tensor=None,
+                attention_mask: torch.Tensor=None,
+                start_positions=None, end_positions=None):
+        batch = {
+            'input_ids': input_ids,
+            'token_type_ids': token_type_ids,
+            'attention_mask': attention_mask,
+            'masked_lm_labels': None
+        }
+
+        """
+        :sentence_output: top hidden states or all hidden states. It depends on config.return_hidden_states
+        :pooled_output: [CLS] hidden states
+        """
+        
+        sequence_output, pooled_output = self.bert(batch)
+        
+        if self.policy == 'max':
+            sequence_output = self.pool(sequence_output)
+        
         logits = self.qa_outputs(sequence_output)
         start_logits, end_logits = logits.split(1, dim=-1)
         start_logits = start_logits.squeeze(-1)
