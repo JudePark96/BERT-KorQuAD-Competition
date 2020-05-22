@@ -103,6 +103,7 @@ class PositionWiseFeedForward(nn.Module):
 class Block(nn.Module):
     def __init__(self, config):
         super(Block, self).__init__()
+        self.config = config
         self.attention_norm = LayerNorm(config.hidden_size, eps=1e-12)
         self.ffn_norm = LayerNorm(config.hidden_size, eps=1e-12)
         self.ffn = PositionWiseFeedForward(config)
@@ -111,7 +112,12 @@ class Block(nn.Module):
     def forward(self, x, attention_mask):
         # Attention
         h = x
-        x = self.attn(x, attention_mask)
+
+        if self.config.return_attentions:
+            x, attn_probs = self.attn(x, attention_mask)
+        else:
+            x = self.attn(x, attention_mask)
+
         x = h + x
         x = self.attention_norm(x)
 
@@ -121,12 +127,13 @@ class Block(nn.Module):
         x = x + h
         x = self.ffn_norm(x)
 
-        return x
+        return (x, attn_probs) if self.config.return_attentions else (x)
 
 
 class Encoder(nn.Module):
     def __init__(self, config):
         super(Encoder, self).__init__()
+        self.config = config
         self.layer = nn.ModuleList()
         for l in range(config.num_hidden_layers):
             layer = Block(config)
@@ -134,12 +141,17 @@ class Encoder(nn.Module):
 
     def forward(self, hidden_states, attention_mask):
         all_encoder_layers = []
+        all_attention_probs = []
         for layer_block in self.layer:
-            hidden_states = layer_block(hidden_states, attention_mask)
+            if self.config.return_attentions:
+                hidden_states, attn_probs = layer_block(hidden_states, attention_mask)
+                all_attention_probs.append(attn_probs)
+            else:
+                hidden_states = layer_block(hidden_states, attention_mask)
+
             all_encoder_layers.append(hidden_states)
 
-        return all_encoder_layers
-
+        return (all_encoder_layers, all_attention_probs) if self.config.return_attentions else (all_encoder_layers)
 
 class Config(object):
     def __init__(self,
@@ -312,25 +324,34 @@ class Model(nn.Module):
         extended_attention_mask = (1.0 - extended_attention_mask) * -10000.0
 
         embedding_output = self.embeddings(input_ids, token_type_ids)
-        encoded_layers = self.encoder(embedding_output,
-                                      extended_attention_mask)
+
+        # It depends on return_attention option.
+        if self.config.return_attentions:
+            encoded_layers, attention_probs = self.encoder(embedding_output, extended_attention_mask)
+        else:
+            encoded_layers = self.encoder(embedding_output, extended_attention_mask)
 
         sequence_output = encoded_layers[-1]
         pooled_output = self.pooler(sequence_output)
 
+        outputs = (sequence_output, pooled_output)
+
         if self.config.return_all_hidden_states:
-            outputs = (encoded_layers, pooled_output)
-            return outputs
+            outputs = (outputs,) + encoded_layers
 
-        return sequence_output, pooled_output
+        if self.config.return_attentions:
+            outputs = (outputs,) + attention_probs
 
+        # Tuple(sequence_output, pooled_output, all_hidden_states(option), attention_map(option))
+        return outputs
 
-class BertForMaskedLM(nn.Module):
+class BertForPostTraining(nn.Module):
     def __init__(self, config) -> None:
-        super(BertForMaskedLM, self).__init__()
+        super(BertForPostTraining, self).__init__()
         self.config = config
         self.bert = Model(config)
-        self.cls = PreTrainingHeads(config, self.bert.embeddings.word_embeddings.weight)
+        self.mlm = PreTrainingHeads(config, self.bert.embeddings.word_embeddings.weight)
+        self.cls = Linear(config.hidden_size, 2)
 
         self.tie_weights()
 
@@ -339,19 +360,22 @@ class BertForMaskedLM(nn.Module):
                             token_type_ids=batch['token_type_ids'],
                             attention_mask=batch['attention_mask'])
         sequence_output = outputs[0]
-        prediction_scores = self.cls(sequence_output)
+        pooled_output = outputs[1]
+        prediction_scores = self.mlm(sequence_output)
+        seq_relationship_score = self.cls(pooled_output)
 
-        if batch['masked_lm_labels'] is not None:
-            # TODO -> to GPU?
+        if batch['masked_lm_labels'] is not None and batch['next_sentence_labels'] is not None:
             loss_fct = CrossEntropyLoss(ignore_index=-1)
-            masked_lm_loss = loss_fct(
-                prediction_scores.view(-1, self.config.vocab_size), batch['masked_lm_labels'].view(-1))
-            outputs = (masked_lm_loss,) + outputs
+            masked_lm_loss = loss_fct(prediction_scores.view(-1, self.config.vocab_size), batch['masked_lm_labels'].view(-1))
+            next_sentence_loss = loss_fct(seq_relationship_score.view(-1, 2), batch['next_sentence_labels'].view(-1))
+            total_loss = masked_lm_loss + next_sentence_loss
+            outputs = (total_loss, masked_lm_loss, next_sentence_loss,) + outputs
 
+        # (total_loss, masked_lm_loss, next_sentence_loss, hidden_state(option), attention(option))
         return outputs
 
     def tie_weights(self):
-        self._tie_or_clone_weights(self.cls.predictions.decoder, self.bert.embeddings.word_embeddings)
+        self._tie_or_clone_weights(self.mlm.predictions.decoder, self.bert.embeddings.word_embeddings)
 
     def _tie_or_clone_weights(self, first_module, second_module):
         first_module.weight = second_module.weight
@@ -367,7 +391,7 @@ class BertForMaskedLM(nn.Module):
 class QuestionAnswering(nn.Module):
     def __init__(self, config):
         super(QuestionAnswering, self).__init__()
-        self.bert = BertForMaskedLM(config)
+        self.bert = BertForPostTraining(config)
         # TODO check with Google if it's normal there is no dropout on the token classifier of SQuAD in the TF version
         # self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.qa_outputs = Linear(config.hidden_size, 2)
@@ -415,11 +439,11 @@ class QuestionAnswering(nn.Module):
 
 class PoolingQuestionAnswering(nn.Module):
     """
-    Output 에서 [CLS] + Question + Answer 에 대하여 policy (max, min, mean) 으로 pooling 한다.
+    Output 에서 [mlm] + Question + Answer 에 대하여 policy (max, min, mean) 으로 pooling 한다.
     """
     def __init__(self, config, policy: str):
         super(PoolingQuestionAnswering, self).__init__()
-        self.bert = BertForMaskedLM(config)
+        self.bert = BertForPostTraining(config)
         self.policy = policy
         if self.policy == 'max':
             # torch.nn.MaxPool1d(kernel_size, stride=None, padding=0, dilation=1, return_indices=False, ceil_mode=False)
@@ -441,7 +465,7 @@ class PoolingQuestionAnswering(nn.Module):
 
         """
         :sentence_output: top hidden states or all hidden states. It depends on config.return_hidden_states
-        :pooled_output: [CLS] hidden states
+        :pooled_output: [mlm] hidden states
         """
         
         sequence_output, pooled_output = self.bert(batch)

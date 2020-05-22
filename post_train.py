@@ -16,7 +16,7 @@ from torch.utils.data import (DataLoader, RandomSampler, TensorDataset)
 from tqdm import tqdm, trange
 
 # +
-from models.modeling_bert import Config, BertForMaskedLM
+from models.modeling_bert import Config, BertForPostTraining
 from utils.optimization import AdamW, WarmupLinearSchedule
 from utils.tokenization import BertTokenizer
 from utils.post_training_dataset import BertPostTrainingDataset
@@ -106,7 +106,7 @@ def main():
 
     # Prepare model
     config = Config.from_json_file(args.model_config)
-    model = BertForMaskedLM(config)
+    model = BertForPostTraining(config)
     model.bert.load_state_dict(torch.load(args.checkpoint))
 
     # Multi-GPU Setting
