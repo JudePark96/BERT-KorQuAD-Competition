@@ -166,7 +166,7 @@ def main():
         for step, batch in enumerate(iter_bar):
             # loss, mlm_loss, nsp_loss = model(batch)
             output = model(batch)
-            loss, mlm_loss, nsp_loss = output[:2]
+            loss, mlm_loss, nsp_loss = output[:3]
 
             if n_gpu > 1:
                 loss = loss.mean()
