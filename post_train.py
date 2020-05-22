@@ -117,7 +117,7 @@ def main():
     logger.info("Total Parameter: %d" % num_params)
     model.to(device)
 
-    post_training_dataset = BertPostTrainingDataset(args.corpus, args.max_seq_length, device)
+    post_training_dataset = BertPostTrainingDataset(args.corpus, args.max_seq_length)
 
     num_train_optimization_steps = int(len(post_training_dataset) / args.train_batch_size) * args.num_train_epochs
 
@@ -153,7 +153,7 @@ def main():
     num_train_step = num_train_optimization_steps
 
     train_sampler = RandomSampler(post_training_dataset)
-    train_dataloader = DataLoader(post_training_dataset, sampler=train_sampler, batch_size=args.train_batch_size)
+    train_dataloader = DataLoader(post_training_dataset, sampler=train_sampler, batch_size=args.train_batch_size, num_workers=16, pin_memory=True)
 
     model.train()
     global_step = 0
