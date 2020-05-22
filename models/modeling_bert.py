@@ -43,6 +43,7 @@ ACT2FN = {"gelu": gelu, "relu": torch.nn.functional.relu, "swish": swish}
 class Attention(nn.Module):
     def __init__(self, config):
         super(Attention, self).__init__()
+        self.config = config
         self.num_attention_heads = config.num_heads
         self.attention_head_size = int(config.hidden_size / config.num_heads)
         self.all_head_size = self.num_attention_heads * self.attention_head_size
@@ -82,7 +83,7 @@ class Attention(nn.Module):
         context_layer = context_layer.view(*new_context_layer_shape)
         attention_output = self.o_proj(context_layer)
 
-        return attention_output
+        return (attention_output, attention_probs) if self.config.return_attentions else (attention_output)
 
 
 class PositionWiseFeedForward(nn.Module):
@@ -152,7 +153,8 @@ class Config(object):
                  max_position_embeddings=512,
                  type_vocab_size=2,
                  initializer_range=0.02,
-                 return_all_hidden_states=False
+                 return_all_hidden_states=False,
+                 return_attentions=True,
                  ):
         if isinstance(vocab_size_or_config_json_file, str):
             with open(vocab_size_or_config_json_file, "r", encoding='utf-8') as reader:
@@ -171,6 +173,7 @@ class Config(object):
             self.type_vocab_size = type_vocab_size
             self.initializer_range = initializer_range
             self.return_all_hidden_states = return_all_hidden_states
+            self.return_attentions = return_attentions
         else:
             raise ValueError("First argument must be either a vocabulary size (int)"
                              "or the path to a pretrained model config file (str)")

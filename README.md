@@ -3,7 +3,7 @@
 
 This implementation is for [AI NLP Challenge](https://challenge.enliple.com/?fbclid=IwAR2X5gqDqffUHzooGjYha1dzrxG3wsIs6qxd2naMqc6BIXwtCz7zgYqFUlk).
 
-This code is reimplemented as a fork of [huggingface/transformers](https://github.com/huggingface/transformers)
+This code is reimplemented as a fork of [huggingface/transformers](https://github.com/huggingface/transformers) and [korquad-challenge](https://github.com/enlipleai/korquad-challenge).
 
 ```
 @article{Wolf2019HuggingFacesTS,
