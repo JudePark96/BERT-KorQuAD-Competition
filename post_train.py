@@ -164,10 +164,9 @@ def main():
         tr_step, total_loss, mean_loss = 0, 0., 0.
 
         for step, batch in enumerate(iter_bar):
-            if n_gpu == 1:
-                batch = tuple(t.to(device) for t in batch)
-
-            loss = model(batch)[0]
+            # loss, mlm_loss, nsp_loss = model(batch)
+            output = model(batch)
+            loss, mlm_loss, nsp_loss = output[:2]
 
             if n_gpu > 1:
                 loss = loss.mean()
@@ -190,11 +189,13 @@ def main():
             iter_bar.set_description("Train Step(%d / %d) (Mean loss=%5.5f) (loss=%5.5f)" %
                                      (global_step, num_train_step, mean_loss, loss.item()))
             
-            if (global_step + 1) % 100 == 0:
-                summary_writer.add_scalar('Train/Mean_Loss', mean_loss, global_step)
-                summary_writer.add_scalar('Train/Loss', loss.item(), global_step)
+            if global_step % 100 == 0:
+                summary_writer.add_scalar('Train/Total_Mean_Loss', mean_loss, global_step)
+                summary_writer.add_scalar('Train/Total_Loss', loss.item(), global_step)
+                summary_writer.add_scalar('Train/MLM_Loss', mlm_loss.mean().item(), global_step)
+                summary_writer.add_scalar('Train/NSP_Loss', nsp_loss.mean().item(), global_step)
 
-        logger.info("** ** * Saving file * ** **")
+        logger.info("***** Saving file *****")
         model_checkpoint = "pt_bert_%d.bin" % (epoch)
         logger.info(model_checkpoint)
         output_model_file = os.path.join(args.output_dir, model_checkpoint)
