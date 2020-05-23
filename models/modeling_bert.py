@@ -151,6 +151,8 @@ class Encoder(nn.Module):
 
             all_encoder_layers.append(hidden_states)
 
+        all_attention_probs = torch.tensor(all_attention_probs).long()
+
         return (all_encoder_layers, all_attention_probs) if self.config.return_attentions else (all_encoder_layers)
 
 class Config(object):
@@ -340,7 +342,7 @@ class Model(nn.Module):
             outputs = (outputs,) + encoded_layers
 
         if self.config.return_attentions:
-            outputs = (outputs,) + attention_probs
+            outputs = (outputs,) + (attention_probs)
 
         # Tuple(sequence_output, pooled_output, all_hidden_states(option), attention_map(option))
         return outputs
