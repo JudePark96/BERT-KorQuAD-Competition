@@ -24,6 +24,17 @@ This code is reimplemented as a fork of [huggingface/transformers](https://githu
 }
 ```
 
+```bibtex
+@misc{whang2019domain,
+    title={Domain Adaptive Training BERT for Response Selection},
+    author={Taesun Whang and Dongyub Lee and Chanhee Lee and Kisu Yang and Dongsuk Oh and HeuiSeok Lim},
+    year={2019},
+    eprint={1908.04812},
+    archivePrefix={arXiv},
+    primaryClass={cs.CL}
+}
+```
+
 
 ### 1. Post Training Data Generation 
 --------
