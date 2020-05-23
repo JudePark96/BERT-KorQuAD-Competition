@@ -49,6 +49,9 @@ def main():
     parser.add_argument("--checkpoint", default='pretrain_ckpt/bert_small_ckpt.bin',
                         type=str,
                         help="checkpoint")
+    parser.add_argument("--resume_checkpoint", default=False,
+                        type=bool,
+                        help="resume")
     parser.add_argument('--log_dir', default='./runs', type=str)
     parser.add_argument("--model_config", default='data/bert_small.json',
                         type=str)
@@ -107,7 +110,11 @@ def main():
     # Prepare model
     config = Config.from_json_file(args.model_config)
     model = BertForPostTraining(config)
-    model.bert.load_state_dict(torch.load(args.checkpoint))
+
+    if args.resume_checkpoint:
+        model.load_state_dict(torch.load(args.checkpoint))
+    else:
+        model.bert.load_state_dict(torch.load(args.checkpoint))
 
     # Multi-GPU Setting
     if n_gpu > 1:
@@ -196,7 +203,12 @@ def main():
                 summary_writer.add_scalar('Train/NSP_Loss', nsp_loss.mean().item(), global_step)
 
         logger.info("***** Saving file *****")
-        model_checkpoint = "pt_bert_%d.bin" % (epoch)
+
+        if args.resume_checkpoint:
+            model_checkpoint = "pt_bert_from_checkpoint_%d.bin" % (epoch)
+        else:
+            model_checkpoint = "pt_bert_%d.bin" % (epoch)
+
         logger.info(model_checkpoint)
         output_model_file = os.path.join(args.output_dir, model_checkpoint)
         if n_gpu > 1:
