@@ -373,8 +373,10 @@ class BertForPostTraining(nn.Module):
             total_loss = masked_lm_loss + next_sentence_loss
             outputs = (total_loss, masked_lm_loss, next_sentence_loss,) + outputs
 
-        # (total_loss, masked_lm_loss, next_sentence_loss, hidden_state(option), attention(option))
-        return outputs
+            # (total_loss, masked_lm_loss, next_sentence_loss, hidden_state(option), attention(option))
+            return outputs
+
+        return (sequence_output, pooled_output)
 
     def tie_weights(self):
         self._tie_or_clone_weights(self.mlm.predictions.decoder, self.bert.embeddings.word_embeddings)
